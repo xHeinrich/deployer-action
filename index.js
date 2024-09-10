@@ -22,6 +22,15 @@ async function ssh() {
   }
 
   let authSock = '/tmp/ssh-auth.sock'
+
+  // Clean up any existing SSH agents
+  try {
+    await $`ssh-agent -k`
+    await $`rm -f ${authSock}`
+  } catch (err) {
+    // Ignore errors if the agent wasn't running
+  }
+
   await $`ssh-agent -a ${authSock}`
   core.exportVariable('SSH_AUTH_SOCK', authSock)
 
@@ -39,8 +48,21 @@ async function ssh() {
     fs.appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts)
     fs.chmodSync(`${sshHomeDir}/known_hosts`, '600')
   } else {
-    fs.appendFileSync(`${sshHomeDir}/config`, `StrictHostKeyChecking no`)
-    fs.chmodSync(`${sshHomeDir}/config`, '600')
+    // Handle SSH config file
+    const configPath = `${sshHomeDir}/config`
+    let configContent = ''
+    if (fs.existsSync(configPath)) {
+      configContent = fs.readFileSync(configPath, 'utf8')
+    }
+
+    if (!configContent.includes('StrictHostKeyChecking')) {
+      configContent += `\nStrictHostKeyChecking no\n`
+    } else {
+      configContent = configContent.replace(/StrictHostKeyChecking.*\n/g, 'StrictHostKeyChecking no\n')
+    }
+
+    fs.writeFileSync(configPath, configContent)
+    fs.chmodSync(configPath, '600')
   }
 
   let sshConfig = core.getInput('ssh-config')
@@ -124,7 +146,7 @@ async function dep() {
   } catch (e) {
     console.error('Invalid JSON in options')
   }
-  
+
   let phpBin = 'php'
   let phpBinArg = core.getInput('php-binary');
     if (phpBinArg !== '') {
