@@ -25,8 +25,7 @@ async function ssh() {
 
   // Clean up any existing SSH agents
   try {
-    await $`ssh-agent -k`
-    await $`rm -f ${authSock}`
+    await $`killall ssh-agent`
   } catch (err) {
     // Ignore errors if the agent wasn't running
   }
